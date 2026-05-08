@@ -1,0 +1,62 @@
+# -------------------------------------------------------------------------
+# Flutter & Dart
+# -------------------------------------------------------------------------
+/build/
+/.dart_tool/
+/.flutter-plugins
+/.flutter-plugins-dependencies
+/.packages
+/.pub-cache/
+/.pub/
+/coverage/
+/web/stack.trace
+
+# -------------------------------------------------------------------------
+# Android
+# -------------------------------------------------------------------------
+/android/**/generated/
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/local.properties
+/android/key.properties
+*.keystore
+*.jks
+
+# -------------------------------------------------------------------------
+# iOS & macOS
+# -------------------------------------------------------------------------
+/ios/Flutter/.last_build_id
+/ios/Flutter/Ephemeral/
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_export_environment.sh
+/ios/ServiceDefinitions.json
+/ios/Runner/GeneratedPluginRegistrant.h
+/ios/Runner/GeneratedPluginRegistrant.m
+/ios/Pods/
+/macos/Flutter/ephemeral/
+.DS_Store
+
+# -------------------------------------------------------------------------
+# Desktop (Linux & Windows)
+# -------------------------------------------------------------------------
+/linux/flutter/
+/windows/flutter/
+
+# -------------------------------------------------------------------------
+# IDEs & Editor
+# -------------------------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.history/
+*.sublime-project
+*.sublime-workspace
+
+# -------------------------------------------------------------------------
+# Secrets & Environment Variables (WAJIB ADA)
+# -------------------------------------------------------------------------
+.env*
+*.secret
