@@ -5,6 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/transaction_model.dart';
 import '../../home/providers/home_provider.dart';
+import '../providers/transaction_provider.dart';
+import 'transaction_detail_screen.dart';
 
 class TransactionScreen extends ConsumerStatefulWidget {
   const TransactionScreen({super.key});
@@ -15,8 +17,6 @@ class TransactionScreen extends ConsumerStatefulWidget {
 
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   final _searchController = TextEditingController();
-  String _searchQuery = '';
-  TransactionType? _filterType;
 
   @override
   void dispose() {
@@ -26,7 +26,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final transactions = ref.watch(transactionsProvider);
+    // Ambil dari provider, bukan local state
+    final filteredList = ref.watch(filteredTransactionListProvider);
+    final isLoading = ref.watch(transactionLoadingProvider);
+    final filterType = ref.watch(transactionFilterProvider);
     final totalBalance = ref.watch(totalBalanceProvider);
     final totalIncome = ref.watch(totalIncomeProvider);
     final totalExpense = ref.watch(totalExpenseProvider);
@@ -62,8 +65,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                   style: AppTextStyles.amountLarge,
                 ),
                 const SizedBox(height: 16),
-
-                // Cash flow card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -113,8 +114,11 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                     ),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
+                      onChanged: (value) {
+                        // Update provider, bukan setState
+                        ref.read(transactionSearchProvider.notifier).state =
+                            value;
+                      },
                       style: AppTextStyles.bodyMedium,
                       decoration: InputDecoration(
                         hintText: 'Search Transaction',
@@ -141,12 +145,12 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                     height: 44,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: _filterType != null
+                      color: filterType != null
                           ? AppColors.primary
                           : AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _filterType != null
+                        color: filterType != null
                             ? AppColors.primary
                             : AppColors.divider,
                       ),
@@ -155,7 +159,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                       children: [
                         Icon(
                           Icons.filter_list_rounded,
-                          color: _filterType != null
+                          color: filterType != null
                               ? Colors.white
                               : AppColors.textSecondary,
                           size: 18,
@@ -164,7 +168,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                         Text(
                           'Filter',
                           style: AppTextStyles.labelMedium.copyWith(
-                            color: _filterType != null
+                            color: filterType != null
                                 ? Colors.white
                                 : AppColors.textSecondary,
                           ),
@@ -181,22 +185,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
           // Transaction list
           Expanded(
-            child: transactions.when(
-              data: (list) {
-                // Apply filter
-                var filtered = list.where((t) {
-                  final matchSearch =
-                      _searchQuery.isEmpty ||
-                      (t.description?.toLowerCase() ?? '').contains(
-                        _searchQuery.toLowerCase(),
-                      );
-                  final matchFilter =
-                      _filterType == null || t.type == _filterType;
-                  return matchSearch && matchFilter;
-                }).toList();
-
-                if (filtered.isEmpty) {
-                  return Center(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredList.isEmpty
+                ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -214,58 +206,61 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                         ),
                       ],
                     ),
-                  );
-                }
-
-                // Group by date
-                final grouped = <String, List<TransactionModel>>{};
-                for (final t in filtered) {
-                  final key = DateFormat('MMMM dd, yyyy').format(t.date);
-                  grouped.putIfAbsent(key, () => []).add(t);
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                  itemCount: grouped.length,
-                  itemBuilder: (context, index) {
-                    final date = grouped.keys.elementAt(index);
-                    final dayTransactions = grouped[date]!;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8, top: 4),
-                          child: Text(
-                            date,
-                            style: AppTextStyles.bodySmall.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        ...dayTransactions.map(
-                          (t) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _TransactionItem(
-                              transaction: t,
-                              currencyFormat: currencyFormat,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
+                  )
+                : _buildGroupedList(filteredList, currencyFormat),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildGroupedList(
+    List<TransactionModel> list,
+    NumberFormat currencyFormat,
+  ) {
+    // Group by date
+    final grouped = <String, List<TransactionModel>>{};
+    for (final t in list) {
+      final key = DateFormat('MMMM dd, yyyy').format(t.date);
+      grouped.putIfAbsent(key, () => []).add(t);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+      itemCount: grouped.length,
+      itemBuilder: (context, index) {
+        final date = grouped.keys.elementAt(index);
+        final dayTransactions = grouped[date]!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8, top: 4),
+              child: Text(
+                date,
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ...dayTransactions.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _TransactionItem(
+                  transaction: t,
+                  currencyFormat: currencyFormat,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showFilterModal(BuildContext context) {
+    final currentFilter = ref.read(transactionFilterProvider);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -298,36 +293,39 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               children: [
                 _FilterChip(
                   label: 'All',
-                  isSelected: _filterType == null,
+                  isSelected: currentFilter == null,
                   onTap: () {
-                    setState(() => _filterType = null);
+                    ref.read(transactionFilterProvider.notifier).state = null;
                     Navigator.pop(context);
                   },
                 ),
                 _FilterChip(
                   label: 'Expense',
-                  isSelected: _filterType == TransactionType.expense,
+                  isSelected: currentFilter == TransactionType.expense,
                   color: AppColors.expense,
                   onTap: () {
-                    setState(() => _filterType = TransactionType.expense);
+                    ref.read(transactionFilterProvider.notifier).state =
+                        TransactionType.expense;
                     Navigator.pop(context);
                   },
                 ),
                 _FilterChip(
                   label: 'Income',
-                  isSelected: _filterType == TransactionType.income,
+                  isSelected: currentFilter == TransactionType.income,
                   color: AppColors.income,
                   onTap: () {
-                    setState(() => _filterType = TransactionType.income);
+                    ref.read(transactionFilterProvider.notifier).state =
+                        TransactionType.income;
                     Navigator.pop(context);
                   },
                 ),
                 _FilterChip(
                   label: 'Transfer',
-                  isSelected: _filterType == TransactionType.transfer,
+                  isSelected: currentFilter == TransactionType.transfer,
                   color: AppColors.transfer,
                   onTap: () {
-                    setState(() => _filterType = TransactionType.transfer);
+                    ref.read(transactionFilterProvider.notifier).state =
+                        TransactionType.transfer;
                     Navigator.pop(context);
                   },
                 ),
@@ -388,78 +386,73 @@ class _TransactionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isExpense = transaction.type == TransactionType.expense;
-    final isIncome = transaction.type == TransactionType.income;
+    final color = switch (transaction.type) {
+      TransactionType.income => AppColors.income,
+      TransactionType.transfer => AppColors.transfer,
+      _ => AppColors.expense,
+    };
 
-    final color = isExpense
-        ? AppColors.expense
-        : isIncome
-        ? AppColors.income
-        : AppColors.transfer;
+    final icon = switch (transaction.type) {
+      TransactionType.income => Icons.arrow_downward_rounded,
+      TransactionType.transfer => Icons.swap_horiz_rounded,
+      _ => Icons.arrow_upward_rounded,
+    };
 
-    final prefix = isExpense
-        ? '- '
-        : isIncome
-        ? '+ '
-        : '';
+    final prefix = switch (transaction.type) {
+      TransactionType.income => '+ ',
+      TransactionType.transfer => '→ ',
+      _ => '- ',
+    };
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TransactionDetailScreen(transaction: transaction),
+        ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              isExpense
-                  ? Icons.arrow_upward_rounded
-                  : isIncome
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_forward_rounded,
-              color: color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              transaction.description ?? 'Transaction',
-              style: AppTextStyles.labelMedium,
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$prefix${currencyFormat.format(transaction.amount)}',
-                style: AppTextStyles.labelMedium.copyWith(color: color),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 2),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 16,
-                  color: AppColors.textSecondary,
-                ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    transaction.description ?? 'Transaction',
+                    style: AppTextStyles.labelMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('HH:mm').format(transaction.date),
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+            Text(
+              '$prefix${currencyFormat.format(transaction.amount)}',
+              style: AppTextStyles.labelMedium.copyWith(color: color),
+            ),
+          ],
+        ),
       ),
     );
   }
