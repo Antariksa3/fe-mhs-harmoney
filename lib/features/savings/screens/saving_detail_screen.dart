@@ -303,14 +303,16 @@ class _AmountInfo extends StatelessWidget {
       children: [
         Text(label, style: AppTextStyles.bodySmall),
         const SizedBox(height: 4),
-        Text(
-          amount,
-          style: AppTextStyles.bodySmall.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            amount,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

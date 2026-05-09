@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/category_model.dart';
+import '../../home/providers/home_provider.dart';
 
-// Provider untuk categories
 final categoriesProvider =
     StateNotifierProvider<CategoriesNotifier, List<CategoryModel>>((ref) {
       return CategoriesNotifier();
@@ -142,15 +142,12 @@ class _ManageCategoryScreenState extends ConsumerState<ManageCategoryScreen>
   Widget build(BuildContext context) {
     final categories = ref.watch(categoriesProvider);
 
-    final expenseCategories = categories
-        .where((c) => c.type == CategoryType.expense)
-        .toList();
-    final incomeCategories = categories
-        .where((c) => c.type == CategoryType.income)
-        .toList();
-    final transferCategories = categories
-        .where((c) => c.type == CategoryType.transfer)
-        .toList();
+    final expenseCategories =
+        ref.watch(expenseCategoriesProvider).valueOrNull ?? [];
+    final incomeCategories =
+        ref.watch(incomeCategoriesProvider).valueOrNull ?? [];
+    final transferCategories =
+        ref.watch(transferCategoriesProvider).valueOrNull ?? [];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -310,14 +307,40 @@ class _CategoryList extends ConsumerWidget {
       builder: (_) => _CategoryFormModal(
         title: 'Add Category',
         buttonLabel: 'Add',
-        onSubmit: (name, subcategory) {
-          final newCat = CategoryModel(
-            id: 'cat-${DateTime.now().millisecondsSinceEpoch}',
-            name: name,
-            type: type,
-            subcategories: subcategory.isNotEmpty ? [subcategory] : [],
+        onSubmit: (name, subcategory) async {
+          final existingCategories = ref.read(categoriesProvider);
+          final isDuplicate = existingCategories.any(
+            (c) => c.name.toLowerCase() == name.toLowerCase() && c.type == type,
           );
-          ref.read(categoriesProvider.notifier).addCategory(newCat);
+
+          if (isDuplicate) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Kategori "$name" sudah ada!'),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+            return; // Hentikan proses save
+          }
+
+          await ref
+              .read(categoryRepositoryProvider)
+              .addCategory(
+                CategoryModel(
+                  id: '',
+                  name: name,
+                  type: type,
+                  subcategories: subcategory.isNotEmpty ? [subcategory] : [],
+                ),
+              );
+          ref.invalidate(categoriesProvider);
+          ref.invalidate(expenseCategoriesProvider);
+          ref.invalidate(incomeCategoriesProvider);
+          ref.invalidate(transferCategoriesProvider);
         },
       ),
     );

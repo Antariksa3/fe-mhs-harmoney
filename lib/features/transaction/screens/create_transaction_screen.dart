@@ -11,70 +11,6 @@ import '../../../shared/widgets/app_button.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../home/providers/home_provider.dart';
 
-// Mock categories
-final _expenseCategories = [
-  CategoryModel(
-    id: 'cat-001',
-    name: 'Food & Beverage',
-    type: CategoryType.expense,
-  ),
-  CategoryModel(
-    id: 'cat-002',
-    name: 'Transportation',
-    type: CategoryType.expense,
-  ),
-  CategoryModel(id: 'cat-003', name: 'Education', type: CategoryType.expense),
-  CategoryModel(id: 'cat-004', name: 'Shopping', type: CategoryType.expense),
-  CategoryModel(id: 'cat-005', name: 'Health', type: CategoryType.expense),
-  CategoryModel(
-    id: 'cat-006',
-    name: 'Entertainment',
-    type: CategoryType.expense,
-  ),
-];
-
-final _incomeCategories = [
-  CategoryModel(
-    id: 'cat-income-001',
-    name: 'Salary',
-    type: CategoryType.income,
-  ),
-  CategoryModel(
-    id: 'cat-income-002',
-    name: 'Business',
-    type: CategoryType.income,
-  ),
-  CategoryModel(
-    id: 'cat-income-003',
-    name: 'Freelance',
-    type: CategoryType.income,
-  ),
-  CategoryModel(
-    id: 'cat-income-004',
-    name: 'Investment',
-    type: CategoryType.income,
-  ),
-  CategoryModel(id: 'cat-income-005', name: 'Bonus', type: CategoryType.income),
-];
-
-final _transferCategories = [
-  CategoryModel(
-    id: 'cat-transfer-001',
-    name: 'Bank',
-    type: CategoryType.transfer,
-  ),
-  CategoryModel(
-    id: 'cat-transfer-002',
-    name: 'E-Wallet',
-    type: CategoryType.transfer,
-  ),
-  CategoryModel(
-    id: 'cat-transfer-003',
-    name: 'Cash',
-    type: CategoryType.transfer,
-  ),
-];
-
 class CreateTransactionScreen extends ConsumerStatefulWidget {
   final String type;
 
@@ -96,14 +32,14 @@ class _CreateTransactionScreenState
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
-  List<CategoryModel> get _categories {
+  List<CategoryModel> _getCategoriesFromRef(WidgetRef ref) {
     switch (widget.type) {
       case 'income':
-        return _incomeCategories;
+        return ref.watch(incomeCategoriesProvider).valueOrNull ?? [];
       case 'transfer':
-        return _transferCategories;
+        return ref.watch(transferCategoriesProvider).valueOrNull ?? [];
       default:
-        return _expenseCategories;
+        return ref.watch(expenseCategoriesProvider).valueOrNull ?? [];
     }
   }
 
@@ -168,14 +104,21 @@ class _CreateTransactionScreenState
       _showError('Please select destination wallet');
       return;
     }
-
+    final rawAmount = _nominalController.text.replaceAll('.', '');
+    final amount = double.parse(rawAmount);
+    // 1. Validasi nominal tidak boleh nol atau negatif
+    if (amount <= 0) {
+      _showError('Nominal transaksi harus lebih dari Rp 0');
+      return;
+    }
+    // 2. Validasi saldo dompet mencukupi (kecuali transaksi Income)
+    if (widget.type != 'income' && amount > _selectedWallet!.balance) {
+      _showError('Saldo di dompet tidak mencukupi!');
+      return;
+    }
     setState(() => _isLoading = true);
-
     try {
       final user = ref.read(authProvider).user!;
-      final rawAmount = _nominalController.text.replaceAll('.', '');
-      final amount = double.parse(rawAmount);
-
       final transaction = TransactionModel(
         id: const Uuid().v4(),
         userId: user.id,
@@ -189,13 +132,10 @@ class _CreateTransactionScreenState
             : _descriptionController.text,
         date: _selectedDate,
       );
-
       await ref.read(transactionRepositoryProvider).addTransaction(transaction);
-
       // Invalidate providers biar data refresh
       ref.invalidate(transactionsProvider);
       ref.invalidate(walletsProvider);
-
       if (mounted) {
         Navigator.pop(context);
         _showSuccess();
@@ -239,6 +179,7 @@ class _CreateTransactionScreenState
   @override
   Widget build(BuildContext context) {
     final wallets = ref.watch(walletsProvider);
+    final categories = _getCategoriesFromRef(ref);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -491,14 +432,16 @@ class _CreateTransactionScreenState
   }
 
   void _showCategoryPicker() {
+    final categories = _getCategoriesFromRef(ref);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _PickerModal(
         title: 'Choose Category',
-        items: _categories.map((c) => c.name).toList(),
+        items: categories.map((c) => c.name).toList(),
         onSelected: (index) {
-          setState(() => _selectedCategory = _categories[index]);
+          setState(() => _selectedCategory = categories[index]);
         },
       ),
     );
@@ -508,19 +451,25 @@ class _CreateTransactionScreenState
     final wallets = ref.read(walletsProvider).valueOrNull ?? [];
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PickerModal(
-        title: isFrom ? 'From Wallet' : 'To Wallet',
-        items: wallets.map((w) => w.name).toList(),
-        onSelected: (index) {
-          setState(() {
-            if (isFrom) {
-              _selectedWallet = wallets[index];
-            } else {
-              _selectedToWallet = wallets[index];
-            }
-          });
-        },
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: _PickerModal(
+          title: isFrom ? 'From Wallet' : 'To Wallet',
+          items: wallets.map((w) => w.name).toList(),
+          onSelected: (index) {
+            setState(() {
+              if (isFrom) {
+                _selectedWallet = wallets[index];
+              } else {
+                _selectedToWallet = wallets[index];
+              }
+            });
+          },
+        ),
       ),
     );
   }

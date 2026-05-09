@@ -168,7 +168,25 @@ class ManageWalletScreen extends ConsumerWidget {
           ref.invalidate(walletsProvider);
         },
         onDelete: () async {
+          // Cascade delete transactions
+          final transactions = ref.read(transactionsProvider).valueOrNull ?? [];
+          final walletTx = transactions.where((tx) => tx.walletId == wallet.id || tx.toWalletId == wallet.id);
+          for (final tx in walletTx) {
+            await ref.read(transactionRepositoryProvider).deleteTransaction(tx.id);
+          }
+          
+          // Cascade delete savings
+          final savings = ref.read(savingsProvider).valueOrNull ?? [];
+          final walletSavings = savings.where((s) => s.walletId == wallet.id);
+          for (final s in walletSavings) {
+            await ref.read(savingRepositoryProvider).deleteSaving(s.id);
+          }
+
+          // Delete the wallet itself
           await ref.read(walletRepositoryProvider).deleteWallet(wallet.id);
+          
+          ref.invalidate(transactionsProvider);
+          ref.invalidate(savingsProvider);
           ref.invalidate(walletsProvider);
         },
       ),
@@ -281,7 +299,7 @@ class _WalletFormModalState extends ConsumerState<_WalletFormModal> {
   }
 
   Future<void> _handleSubmit() async {
-    if (_nameController.text.isEmpty) {
+    if (_nameController.text.trim().isEmpty) {
       _showError('Wallet name is required');
       return;
     }

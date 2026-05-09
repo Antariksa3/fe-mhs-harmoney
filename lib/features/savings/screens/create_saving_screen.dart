@@ -105,6 +105,16 @@ class _CreateSavingScreenState extends ConsumerState<CreateSavingScreen> {
           .replaceAll(',', '');
       final amount = double.parse(rawAmount);
 
+      if (amount <= 0) {
+        _showError('Target tabungan harus lebih dari Rp 0');
+        return;
+      }
+
+      if (_endDate.isBefore(_startDate) || _endDate.isAtSameMomentAs(_startDate)) {
+        _showError('End date must be after start date');
+        return;
+      }
+
       if (_isEditing) {
         final updated = SavingModel(
           id: widget.existingSaving!.id,

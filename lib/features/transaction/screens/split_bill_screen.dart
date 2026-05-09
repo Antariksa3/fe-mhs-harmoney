@@ -21,11 +21,18 @@ class _SplitBillScreenState extends ConsumerState<SplitBillScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(splitBillProvider.notifier).reset();
       final user = ref.read(authProvider).user;
       if (user != null) {
         ref.read(splitBillProvider.notifier).initWithSelf(user.fullName);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    ref.read(splitBillProvider.notifier).reset();
+    super.dispose();
   }
 
   @override
@@ -114,7 +121,7 @@ class _SplitBillScreenState extends ConsumerState<SplitBillScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    'Belum ada item. Tap "+ Add Item" untuk mulai.',
+                    'No items yet. Tap "+ Add Item" to start.',
                     style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.textHint,
                     ),
@@ -267,8 +274,9 @@ class _FriendsList extends StatelessWidget {
             (friend) => Padding(
               padding: const EdgeInsets.only(right: 12),
               child: _FriendAvatar(
-                label: friend.name,
+                label: friend.id == 'self' ? 'You' : friend.name,
                 initial: friend.name[0].toUpperCase(),
+                isSelf: friend.id == 'self',
                 onTap: () => _showEditFriendModal(context, friend),
               ),
             ),
@@ -288,6 +296,8 @@ class _FriendsList extends StatelessWidget {
   }
 
   void _showEditFriendModal(BuildContext context, SplitBillFriend friend) {
+    if (friend.id == 'self') return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -305,6 +315,7 @@ class _FriendAvatar extends StatelessWidget {
   final String label;
   final String initial;
   final bool isAddButton;
+  final bool isSelf;
   final VoidCallback onTap;
 
   const _FriendAvatar({
@@ -312,6 +323,7 @@ class _FriendAvatar extends StatelessWidget {
     required this.initial,
     required this.onTap,
     this.isAddButton = false,
+    this.isSelf = false,
   });
 
   @override
@@ -320,33 +332,60 @@ class _FriendAvatar extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isAddButton
-                  ? AppColors.primaryMuted
-                  : AppColors.cardBackground,
-              shape: BoxShape.circle,
-              border: isAddButton
-                  ? null
-                  : Border.all(color: AppColors.primary, width: 1.5),
-            ),
-            child: Center(
-              child: isAddButton
-                  ? Icon(Icons.add, color: AppColors.primary)
-                  : Text(
-                      initial,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: AppColors.primary,
+          Stack(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isAddButton
+                      ? AppColors.primaryMuted
+                      : AppColors.cardBackground,
+                  shape: BoxShape.circle,
+                  border: isAddButton
+                      ? null
+                      : Border.all(
+                          color: isSelf ? AppColors.primary : AppColors.primary,
+                          width: isSelf ? 2 : 1.5,
+                        ),
+                ),
+                child: Center(
+                  child: isAddButton
+                      ? Icon(Icons.add, color: AppColors.primary)
+                      : Text(
+                          initial,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            color: AppColors.primary,
+                          ),
+                        ),
+                ),
+              ),
+              // Badge "You"
+              if (isSelf)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.background,
+                        width: 1.5,
                       ),
                     ),
-            ),
+                    child: Icon(Icons.person, color: Colors.white, size: 10),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: AppTextStyles.bodySmall,
+            style: AppTextStyles.bodySmall.copyWith(
+              fontWeight: isSelf ? FontWeight.w700 : FontWeight.w400,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -400,11 +439,12 @@ class _ItemCard extends StatelessWidget {
                   ),
                   if (assignedFriends.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
                       children: assignedFriends
                           .map(
                             (f) => Container(
-                              margin: const EdgeInsets.only(right: 4),
                               width: 28,
                               height: 28,
                               decoration: BoxDecoration(

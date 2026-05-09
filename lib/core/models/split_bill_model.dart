@@ -70,9 +70,20 @@ class SplitBillState {
 
   // Items beserta share harga untuk 1 friend
   List<MapEntry<SplitBillItem, double>> getItemsForFriend(String friendId) {
-    return items
-        .where((item) => item.assignedFriendIds.contains(friendId))
-        .map((item) => MapEntry(item, item.pricePerPerson))
-        .toList();
+    final result = <SplitBillItem, double>{};
+    for (final item in items) {
+      if (item.assignedFriendIds.contains(friendId)) {
+        // Bagi dengan jumlah orang yang share item ini
+        final shareCount = item.assignedFriendIds.length;
+
+        // Validasi pembagian untuk mencegah Division by Zero (NaN / Infinity)
+        if (shareCount > 0) {
+          result[item] = item.totalPrice / shareCount;
+        } else {
+          result[item] = 0.0;
+        }
+      }
+    }
+    return result.entries.toList();
   }
 }

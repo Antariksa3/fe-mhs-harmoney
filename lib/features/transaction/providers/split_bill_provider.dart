@@ -79,7 +79,9 @@ class SplitBillNotifier extends StateNotifier<SplitBillState> {
     );
   }
 
-  void reset() => state = const SplitBillState();
+  void reset() {
+    state = SplitBillState(friends: [], items: []);
+  }
 }
 
 final splitBillProvider =
