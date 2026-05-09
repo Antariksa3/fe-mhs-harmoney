@@ -9,6 +9,9 @@ import '../../../core/mock/mock_wallet_repository.dart';
 import '../../../core/mock/mock_transaction_repository.dart';
 import '../../../core/mock/mock_saving_repository.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/repositories/category_repository.dart';
+import '../../../core/mock/mock_category_repository.dart';
+import '../../../core/models/category_model.dart';
 
 // Repository providers
 final walletRepositoryProvider = Provider<WalletRepository>((ref) {
@@ -92,3 +95,35 @@ final totalSavingsProvider = Provider<double>((ref) {
 
 // Balance visibility toggle
 final balanceVisibleProvider = StateProvider<bool>((ref) => true);
+
+final categoryRepositoryProvider = Provider<CategoryRepository>((ref) {
+  return MockCategoryRepository();
+});
+
+final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) async {
+  return ref.watch(categoryRepositoryProvider).getCategories();
+});
+
+final expenseCategoriesProvider = FutureProvider<List<CategoryModel>>((
+  ref,
+) async {
+  return ref
+      .watch(categoryRepositoryProvider)
+      .getCategoriesByType(CategoryType.expense);
+});
+
+final incomeCategoriesProvider = FutureProvider<List<CategoryModel>>((
+  ref,
+) async {
+  return ref
+      .watch(categoryRepositoryProvider)
+      .getCategoriesByType(CategoryType.income);
+});
+
+final transferCategoriesProvider = FutureProvider<List<CategoryModel>>((
+  ref,
+) async {
+  return ref
+      .watch(categoryRepositoryProvider)
+      .getCategoriesByType(CategoryType.transfer);
+});
